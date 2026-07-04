@@ -49,7 +49,22 @@ class HoldingAuthorizationTest extends TestCase
     {
         $other = Holding::create(['owner_type' => self::OWNER, 'owner_id' => 2, 'name' => 'Theirs', 'quantity' => 1, 'unit_price' => 1]);
 
-        $this->getJson("/api/holdings/{$other->id}")->assertForbidden();
+        $this->getJson("/api/holdings/{$other->id}")
+            ->assertForbidden()
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['success', 'message']);
+    }
+
+    #[Test]
+    public function deleting_a_forbidden_owners_holding_is_denied(): void
+    {
+        $other = Holding::create(['owner_type' => self::OWNER, 'owner_id' => 2, 'name' => 'Theirs', 'quantity' => 1, 'unit_price' => 1]);
+
+        $this->deleteJson("/api/holdings/{$other->id}")
+            ->assertForbidden()
+            ->assertJsonPath('success', false);
+
+        $this->assertDatabaseHas('holdings', ['id' => $other->id, 'deleted_at' => null]);
     }
 
     #[Test]
@@ -61,6 +76,7 @@ class HoldingAuthorizationTest extends TestCase
             'name' => 'Theirs',
             'quantity' => 1,
             'unit_price' => 1,
-        ])->assertForbidden();
+        ])->assertForbidden()
+            ->assertJsonPath('success', false);
     }
 }
