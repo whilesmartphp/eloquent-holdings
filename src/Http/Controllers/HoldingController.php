@@ -2,18 +2,23 @@
 
 namespace Whilesmart\Holdings\Http\Controllers;
 
+use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Whilesmart\Holdings\Http\Requests\StoreHoldingRequest;
 use Whilesmart\Holdings\Http\Requests\UpdateHoldingRequest;
 use Whilesmart\Holdings\Http\Resources\HoldingResource;
 use Whilesmart\Holdings\Models\Holding;
 use Whilesmart\Holdings\Services\HoldingRepricer;
+use Whilesmart\Holdings\Traits\ApiResponse;
 use Whilesmart\OwnerAccess\Concerns\AuthorizesOwnerController;
 
 class HoldingController extends Controller
 {
+    use ApiResponse;
     use AuthorizesOwnerController;
 
     public function index(Request $request): JsonResponse
@@ -40,52 +45,37 @@ class HoldingController extends Controller
         $holdings = $query->orderByDesc('updated_at')
             ->paginate((int) $request->input('per_page', 25));
 
-        return response()->json([
-            'success' => true,
-            'data' => HoldingResource::collection($holdings)->response()->getData(true),
-        ]);
+        return $this->paginated($holdings, HoldingResource::class);
     }
 
     public function store(StoreHoldingRequest $request): JsonResponse
     {
         $holding = Holding::create($request->validated());
 
-        return response()->json([
-            'success' => true,
-            'data' => new HoldingResource($holding),
-        ], 201);
+        return $this->success(new HoldingResource($holding), 'Holding created.', 201);
     }
 
     public function show(Holding $holding, Request $request): JsonResponse
     {
-        $this->authorizeAccessTo($holding, $request->user());
+        $this->authorizeHoldingAccess($holding, $request->user());
 
-        return response()->json([
-            'success' => true,
-            'data' => new HoldingResource($holding),
-        ]);
+        return $this->success(new HoldingResource($holding));
     }
 
     public function update(UpdateHoldingRequest $request, Holding $holding): JsonResponse
     {
-        $this->authorizeAccessTo($holding, $request->user());
+        $this->authorizeHoldingAccess($holding, $request->user());
         $holding->update($request->validated());
 
-        return response()->json([
-            'success' => true,
-            'data' => new HoldingResource($holding->fresh()),
-        ]);
+        return $this->success(new HoldingResource($holding->fresh()), 'Holding updated.');
     }
 
     public function destroy(Holding $holding, Request $request): JsonResponse
     {
-        $this->authorizeAccessTo($holding, $request->user());
+        $this->authorizeHoldingAccess($holding, $request->user());
         $holding->delete();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Holding deleted.',
-        ]);
+        return $this->success(null, 'Holding deleted.');
     }
 
     /** Refresh prices for the caller's auto-priced holdings via the bound provider. */
@@ -93,9 +83,19 @@ class HoldingController extends Controller
     {
         $repricer->reprice();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Prices refreshed.',
-        ]);
+        return $this->success(null, 'Prices refreshed.');
+    }
+
+    /**
+     * Owner-access raises a bare AccessDeniedHttpException; re-throw it through
+     * the formatter so denials share the envelope of every other response.
+     */
+    protected function authorizeHoldingAccess(Holding $holding, ?Authenticatable $user): void
+    {
+        try {
+            $this->authorizeAccessTo($holding, $user);
+        } catch (AccessDeniedHttpException) {
+            throw new HttpResponseException($this->failure('This action is unauthorized.', 403));
+        }
     }
 }

@@ -6,7 +6,9 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Whilesmart\Holdings\Console\RepriceHoldingsCommand;
 use Whilesmart\Holdings\Contracts\HoldingPriceProvider;
+use Whilesmart\Holdings\Contracts\ResponseFormatter;
 use Whilesmart\Holdings\PriceProviders\NullPriceProvider;
+use Whilesmart\Holdings\ResponseFormatters\DefaultResponseFormatter;
 
 class HoldingsServiceProvider extends ServiceProvider
 {
@@ -17,6 +19,10 @@ class HoldingsServiceProvider extends ServiceProvider
         // Host apps bind their own provider (e.g. a CoinGecko adapter). Without
         // one, "auto" holdings simply keep their last price.
         $this->app->bindIf(HoldingPriceProvider::class, NullPriceProvider::class);
+
+        $this->app->bind(ResponseFormatter::class, function () {
+            return new (config('holdings.response_formatter') ?: DefaultResponseFormatter::class);
+        });
     }
 
     public function boot(): void

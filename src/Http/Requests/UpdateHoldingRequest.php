@@ -5,11 +5,13 @@ namespace Whilesmart\Holdings\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Whilesmart\Holdings\Enums\PriceSource;
+use Whilesmart\Holdings\Http\Requests\Concerns\FormatsFailedRequests;
 use Whilesmart\OwnerAccess\Concerns\AuthorizesOwnerRequest;
 
 class UpdateHoldingRequest extends FormRequest
 {
     use AuthorizesOwnerRequest;
+    use FormatsFailedRequests;
 
     public function authorize(): bool
     {
