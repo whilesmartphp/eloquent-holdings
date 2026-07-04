@@ -1,3 +1,9 @@
+## [1.1.0] - 2026-07-04
+- Pluggable response formatting: a `ResponseFormatter` contract (with a `DefaultResponseFormatter`) bound from `config('holdings.response_formatter')`, so host apps can shape every holdings response to match the rest of their API
+- All controller actions now return a consistent `{ success, message, data }` envelope
+- Validation and authorization failures now return the formatter's error envelope (`{ success, message, errors }`) instead of the framework default
+- List responses now use a flat pagination shape (`data`, `current_page`, `last_page`, `per_page`, `total`) instead of Laravel's `links`/`meta` collection wrapper (response-shape change for list consumers)
+
 ## [1.0.0] - 2026-06-24
 - Polymorphic holdings register (crypto, stocks, property, any asset), scoped per owner via owner-access
 - Quantity x unit price valuation in the holding's own currency

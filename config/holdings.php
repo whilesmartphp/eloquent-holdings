@@ -1,5 +1,7 @@
 <?php
 
+use Whilesmart\Holdings\ResponseFormatters\DefaultResponseFormatter;
+
 return [
     'register_routes' => env('HOLDINGS_REGISTER_ROUTES', true),
     'route_prefix' => env('HOLDINGS_ROUTE_PREFIX', 'api'),
@@ -8,4 +10,8 @@ return [
 
     // Default fiat currency for new holdings when none is supplied.
     'default_currency' => env('HOLDINGS_DEFAULT_CURRENCY', 'USD'),
+
+    // Host apps may bind their own formatter to shape every holdings response
+    // (envelope, wording, pagination) to match the rest of their API.
+    'response_formatter' => DefaultResponseFormatter::class,
 ];
