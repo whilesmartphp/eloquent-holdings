@@ -1,3 +1,8 @@
+## [1.2.0] - 2026-07-22
+- Auto-priced holdings now get their first price from the bound provider at creation instead of sitting at 0 until the next scheduled reprice run; a caller-supplied `unit_price` still wins, and a provider failure leaves 0 for that run to pick up
+- The reprice endpoint now refreshes only holdings whose owner the caller may access (the `holdings:reprice` command still refreshes all): `HoldingRepricer::reprice()` takes an optional base query
+- New `HoldingRepricer::price($holding)` to price a single holding and `Holding::isAutoPriced()` instance check
+
 ## [1.1.0] - 2026-07-04
 - Pluggable response formatting: a `ResponseFormatter` contract (with a `DefaultResponseFormatter`) bound from `config('holdings.response_formatter')`, so host apps can shape every holdings response to match the rest of their API
 - All controller actions now return a consistent `{ success, message, data }` envelope

@@ -48,6 +48,14 @@ class Holding extends Model
             ->whereNotNull('external_ref');
     }
 
+    /** Instance counterpart of scopeAutoPriced. */
+    public function isAutoPriced(): bool
+    {
+        return $this->price_source === PriceSource::Auto
+            && ! empty($this->provider)
+            && ! empty($this->external_ref);
+    }
+
     protected static function newFactory(): HoldingFactory
     {
         return HoldingFactory::new();

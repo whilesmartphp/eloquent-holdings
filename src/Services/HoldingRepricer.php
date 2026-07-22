@@ -2,6 +2,7 @@
 
 namespace Whilesmart\Holdings\Services;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Event;
 use Whilesmart\Holdings\Contracts\HoldingPriceProvider;
 use Whilesmart\Holdings\Events\HoldingsRepriced;
@@ -17,13 +18,16 @@ class HoldingRepricer
     public function __construct(private readonly HoldingPriceProvider $provider) {}
 
     /**
+     * Reprice the auto-priced holdings in $query, or every auto-priced
+     * holding when no query is given (the scheduled run).
+     *
      * @return int number of holdings whose price was updated
      */
-    public function reprice(): int
+    public function reprice(?Builder $query = null): int
     {
         $changed = [];
 
-        Holding::query()
+        ($query ?? Holding::query())
             ->autoPriced()
             ->get()
             ->groupBy(fn (Holding $h) => $h->provider.'|'.strtoupper((string) $h->currency))
@@ -39,11 +43,7 @@ class HoldingRepricer
                         continue;
                     }
 
-                    $holding->forceFill([
-                        'unit_price' => $price,
-                        'last_priced_at' => now(),
-                    ])->save();
-
+                    $this->apply($holding, $price);
                     $changed[] = $holding->getKey();
                 }
             });
@@ -53,5 +53,40 @@ class HoldingRepricer
         }
 
         return count($changed);
+    }
+
+    /**
+     * Fetch and store the current price of a single auto-priced holding.
+     *
+     * @return bool whether the provider returned a price
+     */
+    public function price(Holding $holding): bool
+    {
+        if (! $holding->isAutoPriced()) {
+            return false;
+        }
+
+        $prices = $this->provider->prices(
+            $holding->provider,
+            [$holding->external_ref],
+            strtoupper((string) $holding->currency)
+        );
+
+        $price = $prices[$holding->external_ref] ?? null;
+        if ($price === null) {
+            return false;
+        }
+
+        $this->apply($holding, $price);
+
+        return true;
+    }
+
+    private function apply(Holding $holding, float $price): void
+    {
+        $holding->forceFill([
+            'unit_price' => $price,
+            'last_priced_at' => now(),
+        ])->save();
     }
 }

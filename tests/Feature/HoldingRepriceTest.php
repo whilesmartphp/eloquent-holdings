@@ -49,4 +49,81 @@ class HoldingRepriceTest extends TestCase
         $this->assertSame(0, $count);
         $this->assertEquals(42, $auto->fresh()->unit_price);
     }
+
+    #[Test]
+    public function creating_an_auto_holding_prices_it_immediately(): void
+    {
+        $this->bindCoingeckoProvider(['bitcoin' => 65000.0]);
+
+        $response = $this->postJson('/api/holdings', [
+            'owner_type' => self::OWNER,
+            'owner_id' => 1,
+            'name' => 'Bitcoin',
+            'quantity' => 0.5,
+            'currency' => 'USD',
+            'price_source' => 'auto',
+            'provider' => 'coingecko',
+            'external_ref' => 'bitcoin',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.unit_price', 65000)
+            ->assertJsonPath('data.value', 32500);
+
+        $holding = Holding::first();
+        $this->assertEquals(65000, $holding->unit_price);
+        $this->assertNotNull($holding->last_priced_at);
+    }
+
+    #[Test]
+    public function a_provider_failure_still_creates_the_holding_unpriced(): void
+    {
+        $this->bindCoingeckoProvider([]);
+
+        $this->postJson('/api/holdings', [
+            'owner_type' => self::OWNER,
+            'owner_id' => 1,
+            'name' => 'Bitcoin',
+            'quantity' => 0.5,
+            'currency' => 'USD',
+            'price_source' => 'auto',
+            'provider' => 'coingecko',
+            'external_ref' => 'bitcoin',
+        ])->assertCreated()
+            ->assertJsonPath('data.unit_price', 0);
+
+        $this->assertNull(Holding::first()->last_priced_at);
+    }
+
+    #[Test]
+    public function a_caller_supplied_price_wins_over_the_provider_at_creation(): void
+    {
+        $this->bindCoingeckoProvider(['bitcoin' => 65000.0]);
+
+        $this->postJson('/api/holdings', [
+            'owner_type' => self::OWNER,
+            'owner_id' => 1,
+            'name' => 'Bitcoin',
+            'quantity' => 0.5,
+            'currency' => 'USD',
+            'unit_price' => 42,
+            'price_source' => 'auto',
+            'provider' => 'coingecko',
+            'external_ref' => 'bitcoin',
+        ])->assertCreated()
+            ->assertJsonPath('data.unit_price', 42);
+    }
+
+    private function bindCoingeckoProvider(array $prices): void
+    {
+        $this->app->bind(HoldingPriceProvider::class, fn () => new class($prices) implements HoldingPriceProvider
+        {
+            public function __construct(private readonly array $fixed) {}
+
+            public function prices(string $provider, array $externalRefs, string $currency): array
+            {
+                return $provider === 'coingecko' ? $this->fixed : [];
+            }
+        });
+    }
 }
