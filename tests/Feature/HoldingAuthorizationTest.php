@@ -6,6 +6,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
+use Whilesmart\Holdings\Contracts\HoldingPriceProvider;
 use Whilesmart\Holdings\Models\Holding;
 use Whilesmart\OwnerAccess\Contracts\OwnerAuthorizer;
 
@@ -78,5 +79,25 @@ class HoldingAuthorizationTest extends TestCase
             'unit_price' => 1,
         ])->assertForbidden()
             ->assertJsonPath('success', false);
+    }
+
+    #[Test]
+    public function reprice_only_touches_holdings_of_accessible_owners(): void
+    {
+        $this->app->bind(HoldingPriceProvider::class, fn () => new class implements HoldingPriceProvider
+        {
+            public function prices(string $provider, array $externalRefs, string $currency): array
+            {
+                return ['bitcoin' => 65000.0];
+            }
+        });
+
+        $mine = Holding::create(['owner_type' => self::OWNER, 'owner_id' => 1, 'name' => 'Mine', 'quantity' => 1, 'currency' => 'USD', 'unit_price' => 1, 'price_source' => 'auto', 'provider' => 'coingecko', 'external_ref' => 'bitcoin']);
+        $theirs = Holding::create(['owner_type' => self::OWNER, 'owner_id' => 2, 'name' => 'Theirs', 'quantity' => 1, 'currency' => 'USD', 'unit_price' => 1, 'price_source' => 'auto', 'provider' => 'coingecko', 'external_ref' => 'bitcoin']);
+
+        $this->postJson('/api/holdings/reprice')->assertOk();
+
+        $this->assertEquals(65000, $mine->fresh()->unit_price);
+        $this->assertEquals(1, $theirs->fresh()->unit_price);
     }
 }
