@@ -48,9 +48,16 @@ class HoldingController extends Controller
         return $this->paginated($holdings, HoldingResource::class);
     }
 
-    public function store(StoreHoldingRequest $request): JsonResponse
+    public function store(StoreHoldingRequest $request, HoldingRepricer $repricer): JsonResponse
     {
         $holding = Holding::create($request->validated());
+
+        // Without this, an auto-priced holding sits at the schema default of 0
+        // until the next scheduled reprice run. A caller-supplied price wins;
+        // a provider failure leaves 0 for that run to pick up.
+        if ((float) $holding->unit_price <= 0) {
+            $repricer->price($holding);
+        }
 
         return $this->success(new HoldingResource($holding), 'Holding created.', 201);
     }
@@ -81,7 +88,7 @@ class HoldingController extends Controller
     /** Refresh prices for the caller's auto-priced holdings via the bound provider. */
     public function reprice(Request $request, HoldingRepricer $repricer): JsonResponse
     {
-        $repricer->reprice();
+        $repricer->reprice($this->scopeAccessibleOwners(Holding::query(), $request->user()));
 
         return $this->success(null, 'Prices refreshed.');
     }
